@@ -989,8 +989,19 @@ function d3_hsl_rgb(h, s, l) {
 
   return d3_rgb(vv(h + 120), vv(h), vv(h - 120));
 }
-var d3_select = function(s, n) { return n.querySelector(s); },
-    d3_selectAll = function(s, n) { return d3_array(n.querySelectorAll(s)); };
+var d3_select = function(s, n) {
+      // If passed a tag, construct a new element instead of searching
+      // a la jQuery.
+      // Match a standalone tag
+      var rsingleTag = /^<(\w+)\s*\/?>(?:<\/\1>)?$/,
+          singleEl = rsingleTag.exec(s);
+      if ( singleEl === null ) {
+        return n.querySelector(s);
+      } else {
+        return n.createElement(singleEl[1]);
+      }
+  },
+  d3_selectAll = function(s, n) { return d3_array(n.querySelectorAll(s)); };
 
 // Use Sizzle, if available.
 if (typeof Sizzle == "function") {
