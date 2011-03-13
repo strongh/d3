@@ -1,4 +1,4 @@
-(function(){d3 = {version: "1.5.2"}; // semver
+(function(){d3 = {version: "1.7.0"}; // semver
 if (!Date.now) Date.now = function() {
   return +new Date();
 };
@@ -28,12 +28,12 @@ function d3_functor(v) {
   return typeof v == "function" ? v : function() { return v; };
 }
 // A getter-setter method that preserves the appropriate `this` context.
-function d3_rebind(object, method) {
+d3.rebind = function(object, method) {
   return function() {
     var x = method.apply(object, arguments);
     return arguments.length ? object : x;
   };
-}
+};
 d3.ascending = function(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
 };
@@ -195,10 +195,19 @@ function d3_splitter(d) {
 function d3_collapse(s) {
   return s.replace(/(^\s+)|(\s+$)/g, "").replace(/\s+/g, " ");
 }
+//
+// Note: assigning to the arguments array simultaneously changes the value of
+// the corresponding argument! However, the Google Closure compiler doesn't
+// realize this, and so can optimize-away our attempt to avoid side-effects.
+// This fix by Jason Davies has been tested to survive minimization.
+//
+// TODO The `this` argument probably shouldn't be the first argument to the
+// callback, anyway, since it's redundant. However, that will require a major
+// version bump due to backwards compatibility, so I'm not changing it right
+// away.
+//
 function d3_call(callback) {
-  var f = callback;
-  arguments[0] = this;
-  f.apply(this, arguments);
+  callback.apply(this, (arguments[0] = this, arguments));
   return this;
 }
 /**
@@ -1875,6 +1884,11 @@ var d3_timer_queue = null,
     d3_timer_timeout = 0,
     d3_timer_interval;
 
+// The timer will continue to fire until callback returns true.
+d3.timer = function(callback) {
+  d3_timer(callback, 0);
+};
+
 function d3_timer(callback, delay) {
   var now = Date.now(),
       found = false,
@@ -1913,8 +1927,9 @@ function d3_timer(callback, delay) {
 }
 
 function d3_timer_start() {
-  d3_timer_interval = setInterval(d3_timer_step, 24);
+  d3_timer_interval = 1;
   d3_timer_timeout = 0;
+  d3_timer_frame(d3_timer_step);
 }
 
 function d3_timer_step() {
@@ -1928,6 +1943,7 @@ function d3_timer_step() {
     t1 = (t0 = t1).next;
   }
   d3_timer_flush();
+  if (d3_timer_interval) d3_timer_frame(d3_timer_step);
 }
 
 // Flush after callbacks, to avoid concurrent queue modification.
@@ -1939,8 +1955,15 @@ function d3_timer_flush() {
         ? (t0 ? t0.next = t1.next : d3_timer_queue = t1.next)
         : (t0 = t1).next;
   }
-  if (!t0) d3_timer_interval = clearInterval(d3_timer_interval);
+  if (!t0) d3_timer_interval = 0;
 }
+
+var d3_timer_frame = window.requestAnimationFrame
+    || window.webkitRequestAnimationFrame
+    || window.mozRequestAnimationFrame
+    || window.oRequestAnimationFrame
+    || window.msRequestAnimationFrame
+    || function(callback) { setTimeout(callback, 17); };
 d3.scale = {};
 d3.scale.linear = function() {
   var x0 = 0,
@@ -2048,9 +2071,9 @@ d3.scale.log = function() {
     return scale;
   };
 
-  scale.range = d3_rebind(scale, linear.range);
-  scale.rangeRound = d3_rebind(scale, linear.rangeRound);
-  scale.interpolate = d3_rebind(scale, linear.interpolate);
+  scale.range = d3.rebind(scale, linear.range);
+  scale.rangeRound = d3.rebind(scale, linear.rangeRound);
+  scale.interpolate = d3.rebind(scale, linear.interpolate);
 
   scale.ticks = function() {
     var d = linear.domain(),
@@ -2083,17 +2106,9 @@ d3.scale.log = function() {
 d3.scale.pow = function() {
   var linear = d3.scale.linear(),
       tick = d3.scale.linear(), // TODO better tick formatting...
-      p = 1,
-      b = 1 / p,
-      n = false;
-
-  function powp(x) {
-    return n ? -Math.pow(-x, p) : Math.pow(x, p);
-  }
-
-  function powb(x) {
-    return n ? -Math.pow(-x, b) : Math.pow(x, b);
-  }
+      exponent = 1,
+      powp = Number,
+      powb = powp;
 
   function scale(x) {
     return linear(powp(x));
@@ -2105,28 +2120,41 @@ d3.scale.pow = function() {
 
   scale.domain = function(x) {
     if (!arguments.length) return linear.domain().map(powb);
-    n = (x[0] || x[1]) < 0;
+    var pow = (x[0] || x[1]) < 0 ? d3_scale_pown : d3_scale_pow;
+    powp = pow(exponent);
+    powb = pow(1 / exponent);
     linear.domain(x.map(powp));
     tick.domain(x);
     return scale;
   };
 
-  scale.range = d3_rebind(scale, linear.range);
-  scale.rangeRound = d3_rebind(scale, linear.rangeRound);
-  scale.inteprolate = d3_rebind(scale, linear.interpolate);
+  scale.range = d3.rebind(scale, linear.range);
+  scale.rangeRound = d3.rebind(scale, linear.rangeRound);
+  scale.interpolate = d3.rebind(scale, linear.interpolate);
   scale.ticks = tick.ticks;
   scale.tickFormat = tick.tickFormat;
 
   scale.exponent = function(x) {
-    if (!arguments.length) return p;
+    if (!arguments.length) return exponent;
     var domain = scale.domain();
-    p = x;
-    b = 1 / x;
+    exponent = x;
     return scale.domain(domain);
   };
 
   return scale;
 };
+
+function d3_scale_pow(e) {
+  return function(x) {
+    return Math.pow(x, e);
+  };
+}
+
+function d3_scale_pown(e) {
+  return function(x) {
+    return -Math.pow(-x, e);
+  };
+}
 d3.scale.sqrt = function() {
   return d3.scale.pow().exponent(.5);
 };
@@ -2464,12 +2492,10 @@ d3.svg.line = function() {
   return line;
 };
 
-/**
- * @private Converts the specified array of data into an array of points
- * (x-y tuples), by evaluating the specified `x` and `y` functions on each
- * data point. The `this` context of the evaluated functions is the specified
- * "self" object; each function is passed the current datum and index.
- */
+// Converts the specified array of data into an array of points
+// (x-y tuples), by evaluating the specified `x` and `y` functions on each
+// data point. The `this` context of the evaluated functions is the specified
+// "self" object; each function is passed the current datum and index.
 function d3_svg_linePoints(self, d, x, y) {
   var points = [],
       i = -1,
@@ -2492,34 +2518,28 @@ function d3_svg_linePoints(self, d, x, y) {
   return points;
 }
 
-/**
- * @private The default `x` property, which references d[0].
- */
+// The default `x` property, which references d[0].
 function d3_svg_lineX(d) {
   return d[0];
 }
 
-/**
- * @private The default `y` property, which references d[1].
- */
+// The default `y` property, which references d[1].
 function d3_svg_lineY(d) {
   return d[1];
 }
 
-/**
- * @private The various interpolators supported by the `line` class.
- */
+// The various interpolators supported by the `line` class.
 var d3_svg_lineInterpolators = {
   "linear": d3_svg_lineLinear,
+  "step-before": d3_svg_lineStepBefore,
+  "step-after": d3_svg_lineStepAfter,
   "basis": d3_svg_lineBasis,
   "basis-closed": d3_svg_lineBasisClosed,
   "cardinal": d3_svg_lineCardinal,
   "cardinal-closed": d3_svg_lineCardinalClosed
 };
 
-/**
- * @private Linear interpolation; generates "L" commands.
- */
+// Linear interpolation; generates "L" commands.
 function d3_svg_lineLinear(points) {
   var path = [],
       i = 0,
@@ -2530,27 +2550,46 @@ function d3_svg_lineLinear(points) {
   return path.join("");
 }
 
-/**
-* @private Closed cardinal spline interpolation; generates "C" commands.
- */
+// Step interpolation; generates "H" and "V" commands.
+function d3_svg_lineStepBefore(points) {
+  var path = [],
+      i = 0,
+      n = points.length,
+      p = points[0];
+  path.push(p[0], ",", p[1]);
+  while (++i < n) path.push("V", (p = points[i])[1], "H", p[0]);
+  return path.join("");
+}
+
+// Step interpolation; generates "H" and "V" commands.
+function d3_svg_lineStepAfter(points) {
+  var path = [],
+      i = 0,
+      n = points.length,
+      p = points[0];
+  path.push(p[0], ",", p[1]);
+  while (++i < n) path.push("H", (p = points[i])[0], "V", p[1]);
+  return path.join("");
+}
+
+// Closed cardinal spline interpolation; generates "C" commands.
 function d3_svg_lineCardinalClosed(points, tension) {
-  if (points.length < 3) return d3_svg_lineLinear(points);
-  return points[0] + d3_svg_lineHermite(points,
-      d3_svg_lineCardinalTangents([points[points.length - 2]].concat(points, [points[1]]), tension));
+  return points.length < 3
+      ? d3_svg_lineLinear(points)
+      : points[0] + d3_svg_lineHermite(points,
+        d3_svg_lineCardinalTangents([points[points.length - 2]]
+        .concat(points, [points[1]]), tension));
 }
 
-/**
- * @private Cardinal spline interpolation; generates "C" commands.
- */
+// Cardinal spline interpolation; generates "C" commands.
 function d3_svg_lineCardinal(points, tension, closed) {
-  if (points.length < 3) return d3_svg_lineLinear(points);
-  return points[0] + d3_svg_lineHermite(points,
-      d3_svg_lineCardinalTangents(points, tension));
+  return points.length < 3
+      ? d3_svg_lineLinear(points)
+      : points[0] + d3_svg_lineHermite(points,
+        d3_svg_lineCardinalTangents(points, tension));
 }
 
-/**
- * @private Hermite spline construction; generates "C" commands.
- */
+// Hermite spline construction; generates "C" commands.
 function d3_svg_lineHermite(points, tangents) {
   if (tangents.length < 1
       || (points.length != tangents.length
@@ -2597,9 +2636,7 @@ function d3_svg_lineHermite(points, tangents) {
   return path;
 }
 
-/**
- * @private Generates tangents for a cardinal spline.
- */
+// Generates tangents for a cardinal spline.
 function d3_svg_lineCardinalTangents(points, tension) {
   var tangents = [],
       a = (1 - tension) / 2,
@@ -2618,9 +2655,7 @@ function d3_svg_lineCardinalTangents(points, tension) {
   return tangents;
 }
 
-/**
- * @private Open B-spline interpolation; generates "C" commands.
- */
+// Open B-spline interpolation; generates "C" commands.
 function d3_svg_lineBasis(points) {
   if (points.length < 3) return d3_svg_lineLinear(points);
   var path = [],
@@ -2648,9 +2683,7 @@ function d3_svg_lineBasis(points) {
   return path.join("");
 }
 
-/**
- * @private Closed B-spline interpolation; generates "C" commands.
- */
+// Closed B-spline interpolation; generates "C" commands.
 function d3_svg_lineBasisClosed(points) {
   var path,
       i = -1,
@@ -2677,25 +2710,19 @@ function d3_svg_lineBasisClosed(points) {
   return path.join("");
 }
 
-/**
- * @private Returns the dot product of the given four-element vectors.
- */
+// Returns the dot product of the given four-element vectors.
 function d3_svg_lineDot4(a, b) {
   return a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
 }
 
-/*
- * @private Matrix to transform basis (b-spline) control points to bezier
- * control points. Derived from FvD 11.2.8.
- */
+// Matrix to transform basis (b-spline) control points to bezier
+// control points. Derived from FvD 11.2.8.
 var d3_svg_lineBasisBezier1 = [0, 2/3, 1/3, 0],
     d3_svg_lineBasisBezier2 = [0, 1/3, 2/3, 0],
     d3_svg_lineBasisBezier3 = [0, 1/6, 2/3, 1/6];
 
-/**
- * @private Pushes a "C" Bézier curve onto the specified path array, given the
- * two specified four-element arrays which define the control points.
- */
+// Pushes a "C" Bézier curve onto the specified path array, given the
+// two specified four-element arrays which define the control points.
 function d3_svg_lineBasisBezier(path, x, y) {
   path.push(
       "C", d3_svg_lineDot4(d3_svg_lineBasisBezier1, x),
