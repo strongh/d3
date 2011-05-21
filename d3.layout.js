@@ -162,6 +162,8 @@ d3.layout.force = function() {
       charge = -30,
       gravity = .1,
       theta = .8,
+      max_iterations = Infinity,
+      iteration_counter,
       interval,
       nodes,
       links,
@@ -202,6 +204,7 @@ d3.layout.force = function() {
         l, // current distance
         x, // x-distance
         y; // y-distance
+
 
     // gauss-seidel relaxation for links
     for (i = 0; i < m; ++i) {
@@ -252,10 +255,14 @@ d3.layout.force = function() {
       }
     }
 
-    event.tick.dispatch({type: "tick", alpha: alpha});
-
-    // simulated annealing, basically
-    return (alpha *= .99) < .005;
+    if (iteration_counter < max_iterations){
+      iteration_counter++;
+      event.tick.dispatch({type: "tick", alpha: alpha});
+      // simulated annealing, basically
+      return (alpha *= .99) < .005;
+    } else {
+      return true;
+    }
   }
 
   force.on = function(type, listener) {
@@ -314,6 +321,12 @@ d3.layout.force = function() {
   force.alpha = function(x) {
     if (!arguments.length) return alpha;
     alpha = x;
+    return force;
+  };
+
+  force.max_iterations = function(x) {
+    if (!arguments.length) return max_iterations;
+    max_iterations = x;
     return force;
   };
 
@@ -376,6 +389,7 @@ d3.layout.force = function() {
 
   force.resume = function() {
     alpha = alpha ? alpha : alpha_cache;
+    iteration_counter = 0;
     d3.timer(tick);
     return force;
   };
