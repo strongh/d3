@@ -47,7 +47,7 @@ function d3_transition(groups) {
     var clear = true,
         k = -1;
     groups.each(function() {
-      if (stage[++k] == 2) return; // ended
+      if (stage[++k] === 2) return; // ended
       var t = (elapsed - delay[k]) / duration[k],
           tx = this.__transition__,
           te, // ease(t)
@@ -67,7 +67,7 @@ function d3_transition(groups) {
       // 1 - In progress.
       // 2 - Ended.
       if (stage[k]) {
-        if (!tx || tx.active != transitionId) {
+        if (!tx || tx.active !== transitionId) {
           stage[k] = 2;
           return;
         }
@@ -79,19 +79,23 @@ function d3_transition(groups) {
         event.start.dispatch.apply(this, arguments);
         ik = interpolators[k] = {};
         tx.active = transitionId;
-        for (tk in tweens) ik[tk] = tweens[tk].apply(this, arguments);
+        for (tk in tweens) {
+          if (te = tweens[tk].apply(this, arguments)) {
+            ik[tk] = te;
+          }
+        }
       }
 
       // Apply the interpolators!
       te = ease(t);
-      for (tk in tweens) ik[tk].call(this, te);
+      for (tk in ik) ik[tk].call(this, te);
 
       // Handle ending transitions.
-      if (t == 1) {
+      if (t === 1) {
         stage[k] = 2;
-        if (tx.active == transitionId) {
+        if (tx.active === transitionId) {
           var owner = tx.owner;
-          if (owner == transitionId) {
+          if (owner === transitionId) {
             delete this.__transition__;
             if (remove) this.parentNode.removeChild(this);
           }
@@ -108,7 +112,7 @@ function d3_transition(groups) {
   transition.delay = function(value) {
     var delayMin = Infinity,
         k = -1;
-    if (typeof value == "function") {
+    if (typeof value === "function") {
       groups.each(function(d, i) {
         var x = delay[++k] = +value.apply(this, arguments);
         if (x < delayMin) delayMin = x;
@@ -125,7 +129,7 @@ function d3_transition(groups) {
 
   transition.duration = function(value) {
     var k = -1;
-    if (typeof value == "function") {
+    if (typeof value === "function") {
       durationMax = 0;
       groups.each(function(d, i) {
         var x = duration[++k] = +value.apply(this, arguments);
@@ -141,7 +145,7 @@ function d3_transition(groups) {
   };
 
   transition.ease = function(value) {
-    ease = typeof value == "string" ? d3.ease(value) : value;
+    ease = typeof value === "function" ? value : d3.ease.apply(d3, arguments);
     return transition;
   };
 
@@ -191,6 +195,15 @@ function d3_transition(groups) {
     return transition.styleTween(name, d3_transitionTween(value), priority);
   };
 
+  transition.text = function(value) {
+    tweens.text = function(d, i) {
+      this.textContent = typeof value === "function"
+          ? value.call(this, d, i)
+          : value;
+    };
+    return transition;
+  };
+
   transition.select = function(query) {
     var k, t = d3_transition(groups.select(query)).ease(ease);
     k = -1; t.delay(function(d, i) { return delay[++k]; });
@@ -221,7 +234,7 @@ function d3_transition(groups) {
 }
 
 function d3_transitionTween(b) {
-  return typeof b == "function"
+  return typeof b === "function"
       ? function(d, i, a) { return d3.interpolate(a, String(b.call(this, d, i))); }
       : (b = String(b), function(d, i, a) { return d3.interpolate(a, b); });
 }

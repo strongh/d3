@@ -1,13 +1,13 @@
 JS_COMPILER = \
-	java -jar lib/google-compiler/compiler.jar \
-	--externs=src/externs.js \
-	--charset=UTF-8
+	./lib/uglifyjs/bin/uglifyjs
 
 all: \
 	d3.js \
 	d3.min.js \
 	d3.behavior.js \
 	d3.behavior.min.js \
+	d3.chart.js \
+	d3.chart.min.js \
 	d3.layout.js \
 	d3.layout.min.js \
 	d3.csv.js \
@@ -41,6 +41,7 @@ d3.core.js: \
 	src/core/keys.js \
 	src/core/values.js \
 	src/core/entries.js \
+	src/core/permute.js \
 	src/core/merge.js \
 	src/core/split.js \
 	src/core/collapse.js \
@@ -58,6 +59,7 @@ d3.core.js: \
 	src/core/ease.js \
 	src/core/event.js \
 	src/core/interpolate.js \
+	src/core/uninterpolate.js \
 	src/core/rgb.js \
 	src/core/hsl.js \
 	src/core/selection.js \
@@ -67,6 +69,8 @@ d3.core.js: \
 d3.scale.js: \
 	src/scale/scale.js \
 	src/scale/linear.js \
+	src/scale/bilinear.js \
+	src/scale/polylinear.js \
 	src/scale/log.js \
 	src/scale/pow.js \
 	src/scale/sqrt.js \
@@ -81,13 +85,23 @@ d3.svg.js: \
 	src/svg/line.js \
 	src/svg/area.js \
 	src/svg/chord.js \
+	src/svg/diagonal.js \
 	src/svg/mouse.js \
+	src/svg/touches.js \
 	src/svg/symbol.js
 
 d3.behavior.js: \
 	src/start.js \
 	src/behavior/behavior.js \
 	src/behavior/zoom.js \
+	src/end.js
+
+d3.chart.js: \
+	src/start.js \
+	src/chart/chart.js \
+	src/chart/box.js \
+	src/chart/bullet.js \
+	src/chart/qq.js \
 	src/end.js
 
 d3.layout.js: \
@@ -99,6 +113,9 @@ d3.layout.js: \
 	src/layout/pie.js \
 	src/layout/stack.js \
 	src/layout/hierarchy.js \
+	src/layout/pack.js \
+	src/layout/cluster.js \
+	src/layout/tree.js \
 	src/layout/treemap.js \
 	src/end.js
 
@@ -138,12 +155,24 @@ d3.geom.js: \
 tests: \
 	tests/test-append.test \
 	tests/test-attr.test \
+	tests/test-classed.test \
 	tests/test-call.test \
+	tests/test-csv-parse.test \
 	tests/test-format.test \
+	tests/test-insert.test \
+	tests/test-interpolate.test \
+	tests/test-keys.test \
+	tests/test-nest.test \
+	tests/test-permute.test \
+	tests/test-remove.test \
+	tests/test-rgb.test \
+	tests/test-hsl.test \
 	tests/test-time-format.test \
 	tests/test-time-parse.test \
 	tests/test-transition.test \
 	tests/test-scale-linear.test \
+	tests/test-scale-polylinear.test \
+	tests/test-scale-log.test \
 	tests/test-scale-sqrt.test \
 	tests/test-scale-pow.test \
 	tests/test-svg-arc.test \
@@ -153,7 +182,7 @@ tests: \
 
 %.min.js: %.js Makefile
 	@rm -f $@
-	$(JS_COMPILER) --js $< --js_output_file $@
+	$(JS_COMPILER) < $< > $@
 
 d3.js d3%.js: Makefile
 	@rm -f $@

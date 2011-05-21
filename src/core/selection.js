@@ -13,7 +13,7 @@ var d3_select = function(s, n) {
   d3_selectAll = function(s, n) { return d3_array(n.querySelectorAll(s)); };
 
 // Use Sizzle, if available.
-if (typeof Sizzle == "function") {
+if (typeof Sizzle === "function") {
   d3_select = function(s, n) { return Sizzle(s, n)[0]; };
   d3_selectAll = function(s, n) { return Sizzle.uniqueSort(Sizzle(s, n)); };
 }
@@ -23,13 +23,13 @@ d3_root[0].parentNode = document.documentElement;
 
 // TODO fast singleton implementation!
 d3.select = function(selector) {
-  return typeof selector == "string"
+  return typeof selector === "string"
       ? d3_root.select(selector)
       : d3_selection([[selector]]); // assume node
 };
 
 d3.selectAll = function(selector) {
-  return typeof selector == "string"
+  return typeof selector === "string"
       ? d3_root.selectAll(selector)
       : d3_selection([d3_array(selector)]); // assume node[]
 };
@@ -46,7 +46,6 @@ function d3_selection(groups) {
       group = groups[j];
       subgroups.push(subgroup = []);
       subgroup.parentNode = group.parentNode;
-      subgroup.parentData = group.parentData;
       for (var i = 0, n = group.length; i < n; i++) {
         if (node = group[i]) {
           subgroup.push(subnode = select(node));
@@ -70,7 +69,6 @@ function d3_selection(groups) {
         if (node = group[i]) {
           subgroups.push(subgroup = selectAll(node));
           subgroup.parentNode = node;
-          subgroup.parentData = node.__data__;
         }
       }
     }
@@ -101,7 +99,6 @@ function d3_selection(groups) {
       group = groups[j];
       subgroups.push(subgroup = []);
       subgroup.parentNode = group.parentNode;
-      subgroup.parentData = group.parentData;
       for (var i = 0, n = group.length; i < n; i++) {
         if ((node = group[i]) && filter.call(node, node.__data__, i)) {
           subgroup.push(node);
@@ -141,13 +138,8 @@ function d3_selection(groups) {
           node,
           nodeData;
 
-      function enterNode(data) {
-        return {__data__: data};
-      }
-
       if (join) {
         var nodeByKey = {},
-            exitData = [],
             keys = [],
             key,
             j = groupData.length;
@@ -155,11 +147,11 @@ function d3_selection(groups) {
         for (i = 0; i < n; i++) {
           key = join.call(node = group[i], node.__data__, i);
           if (key in nodeByKey) {
-            exitNodes[j++] = group[i];
+            exitNodes[j++] = group[i]; // duplicate key
           } else {
             nodeByKey[key] = node;
-            keys.push(key);
           }
+          keys.push(key);
         }
 
         for (i = 0; i < m; i++) {
@@ -169,7 +161,7 @@ function d3_selection(groups) {
             updateNodes[i] = node;
             enterNodes[i] = exitNodes[i] = null;
           } else {
-            enterNodes[i] = enterNode(nodeData),
+            enterNodes[i] = d3_selection_enterNode(nodeData);
             updateNodes[i] = exitNodes[i] = null;
           }
           delete nodeByKey[key];
@@ -189,12 +181,12 @@ function d3_selection(groups) {
             updateNodes[i] = node;
             enterNodes[i] = exitNodes[i] = null;
           } else {
-            enterNodes[i] = enterNode(nodeData);
+            enterNodes[i] = d3_selection_enterNode(nodeData);
             updateNodes[i] = exitNodes[i] = null;
           }
         }
         for (; i < m; i++) {
-          enterNodes[i] = enterNode(groupData[i]);
+          enterNodes[i] = d3_selection_enterNode(groupData[i]);
           updateNodes[i] = exitNodes[i] = null;
         }
         for (; i < n1; i++) {
@@ -208,11 +200,6 @@ function d3_selection(groups) {
           = exitNodes.parentNode
           = group.parentNode;
 
-      enterNodes.parentData
-          = updateNodes.parentData
-          = exitNodes.parentData
-          = group.parentData;
-
       enter.push(enterNodes);
       update.push(updateNodes);
       exit.push(exitNodes);
@@ -221,9 +208,9 @@ function d3_selection(groups) {
     var i = -1,
         n = groups.length,
         group;
-    if (typeof data == "function") {
+    if (typeof data === "function") {
       while (++i < n) {
-        bind(group = groups[i], data.call(group, group.parentData, i));
+        bind(group = groups[i], data.call(group, group.parentNode.__data__, i));
       }
     } else {
       while (++i < n) {
@@ -318,7 +305,7 @@ function d3_selection(groups) {
     }
 
     return groups.each(value == null
-        ? (name.local ? attrNullNS : attrNull) : (typeof value == "function"
+        ? (name.local ? attrNullNS : attrNull) : (typeof value === "function"
         ? (name.local ? attrFunctionNS : attrFunction)
         : (name.local ? attrConstantNS : attrConstant)));
   };
@@ -329,24 +316,36 @@ function d3_selection(groups) {
     // If no value is specified, return the first value.
     if (arguments.length < 2) {
       return first(function() {
+        if (c = this.classList) return c.contains(name);
+        var c = this.className;
         re.lastIndex = 0;
-        return re.test(this.className);
+        return re.test(c.baseVal != null ? c.baseVal : c);
       });
     }
 
     /** @this {Element} */
     function classedAdd() {
-      var classes = this.className;
+      if (c = this.classList) return c.add(name);
+      var c = this.className,
+          cb = c.baseVal != null,
+          cv = cb ? c.baseVal : c;
       re.lastIndex = 0;
-      if (!re.test(classes)) {
-        this.className = d3_collapse(classes + " " + name);
+      if (!re.test(cv)) {
+        cv = d3_collapse(cv + " " + name);
+        if (cb) c.baseVal = cv;
+        else this.className = cv;
       }
     }
 
     /** @this {Element} */
     function classedRemove() {
-      var classes = d3_collapse(this.className.replace(re, " "));
-      this.className = classes.length ? classes : null;
+      if (c = this.classList) return c.remove(name);
+      var c = this.className,
+          cb = c.baseVal != null,
+          cv = cb ? c.baseVal : c;
+      cv = d3_collapse(cv.replace(re, " "));
+      if (cb) c.baseVal = cv;
+      else this.className = cv;
     }
 
     /** @this {Element} */
@@ -356,14 +355,14 @@ function d3_selection(groups) {
           : classedRemove).call(this);
     }
 
-    return groups.each(typeof value == "function"
+    return groups.each(typeof value === "function"
         ? classedFunction : value
         ? classedAdd
         : classedRemove);
   };
 
   groups.style = function(name, value, priority) {
-    if (arguments.length < 3) priority = null;
+    if (arguments.length < 3) priority = "";
 
     // If no value is specified, return the first value.
     if (arguments.length < 2) {
@@ -390,7 +389,7 @@ function d3_selection(groups) {
     }
 
     return groups.each(value == null
-        ? styleNull : (typeof value == "function"
+        ? styleNull : (typeof value === "function"
         ? styleFunction : styleConstant));
   };
 
@@ -422,7 +421,7 @@ function d3_selection(groups) {
     }
 
     return groups.each(value == null
-        ? propertyNull : (typeof value == "function"
+        ? propertyNull : (typeof value === "function"
         ? propertyFunction : propertyConstant));
   };
 
@@ -436,24 +435,16 @@ function d3_selection(groups) {
     }
 
     /** @this {Element} */
-    function textNull() {
-      while (this.lastChild) this.removeChild(this.lastChild);
-    }
-
-    /** @this {Element} */
     function textConstant() {
-      this.appendChild(document.createTextNode(value));
+      this.textContent = value;
     }
 
     /** @this {Element} */
     function textFunction() {
-      var x = value.apply(this, arguments);
-      if (x != null) this.appendChild(document.createTextNode(x));
+      this.textContent = value.apply(this, arguments);
     }
 
-    groups.each(textNull);
-    return value == null ? groups
-        : groups.each(typeof value == "function"
+    return groups.each(typeof value === "function"
         ? textFunction : textConstant);
   };
 
@@ -476,7 +467,7 @@ function d3_selection(groups) {
       this.innerHTML = value.apply(this, arguments);
     }
 
-    return groups.each(typeof value == "function"
+    return groups.each(typeof value === "function"
         ? htmlFunction : htmlConstant);
   };
 
@@ -521,10 +512,9 @@ function d3_selection(groups) {
   // TODO remove(node)?
   // TODO remove(function)?
   groups.remove = function() {
-    return select(function(node) {
-      var parent = node.parentNode;
-      parent.removeChild(node);
-      return parent;
+    return groups.each(function() {
+      var parent = this.parentNode;
+      if (parent) parent.removeChild(this);
     });
   };
 
@@ -546,24 +536,26 @@ function d3_selection(groups) {
 
   // type can be namespaced, e.g., "click.foo"
   // listener can be null for removal
-  groups.on = function(type, listener) {
+  groups.on = function(type, listener, capture) {
+    if (arguments.length < 3) capture = false;
 
     // parse the type specifier
     var i = type.indexOf("."),
-        typo = i == -1 ? type : type.substring(0, i),
+        typo = i === -1 ? type : type.substring(0, i),
         name = "__on" + type;
 
     // remove the old event listener, and add the new event listener
     return groups.each(function(d, i) {
-      if (this[name]) this.removeEventListener(typo, this[name], false);
-      if (listener) this.addEventListener(typo, this[name] = l, false);
+      if (this[name]) this.removeEventListener(typo, this[name], capture);
+      if (listener) this.addEventListener(typo, this[name] = l, capture);
 
-      // wrapped event listener that preserves d, i
+      // wrapped event listener that preserves i
+      var node = this;
       function l(e) {
         var o = d3.event; // Events can be reentrant (e.g., focus).
         d3.event = e;
         try {
-          listener.call(this, d, i);
+          listener.call(this, node.__data__, i);
         } finally {
           d3.event = o;
         }
@@ -594,7 +586,6 @@ function d3_selectionEnter(groups) {
       group = groups[j];
       subgroups.push(subgroup = []);
       subgroup.parentNode = group.parentNode;
-      subgroup.parentData = group.parentData;
       for (var i = 0, n = group.length; i < n; i++) {
         if (node = group[i]) {
           subgroup.push(subnode = select(group.parentNode));
@@ -652,4 +643,8 @@ function d3_selection_comparator(comparator) {
   return function(a, b) {
     return comparator(a && a.__data__, b && b.__data__);
   };
+}
+
+function d3_selection_enterNode(data) {
+  return {__data__: data};
 }

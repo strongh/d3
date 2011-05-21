@@ -1,6 +1,6 @@
 d3.interpolate = function(a, b) {
-  if (typeof b == "number") return d3.interpolateNumber(+a, b);
-  if (typeof b == "string") {
+  if (typeof b === "number") return d3.interpolateNumber(+a, b);
+  if (typeof b === "string") {
     return (b in d3_rgb_names) || /^(#|rgb\(|hsl\()/.test(b)
         ? d3.interpolateRgb(String(a), b)
         : d3.interpolateString(String(a), b);
@@ -29,6 +29,9 @@ d3.interpolateString = function(a, b) {
       q = [], // number interpolators
       n, // q.length
       o;
+
+  // Reset our regular expression!
+  d3_interpolate_number.lastIndex = 0;
 
   // Find all numbers in b.
   for (i = 0; m = d3_interpolate_number.exec(b); ++i) {
@@ -83,7 +86,7 @@ d3.interpolateString = function(a, b) {
   }
 
   // Special optimization for only a single match.
-  if (s.length == 1) {
+  if (s.length === 1) {
     return s[0] == null ? q[0].x : function() { return b; };
   }
 
@@ -165,7 +168,6 @@ d3.interpolateObject = function(a, b) {
 }
 
 var d3_interpolate_number = /[-+]?(?:\d+\.\d+|\d+\.|\.\d+|\d+)(?:[eE][-]?\d+)?/g,
-    d3_interpolate_digits = /[-+]?\d*\.?\d*(?:[eE][-]?\d+)?(.*)/,
     d3_interpolate_rgb = {background: 1, fill: 1, stroke: 1};
 
 function d3_interpolateByName(n) {
