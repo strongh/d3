@@ -3,7 +3,8 @@ d3.layout.force = function() {
   var force = {},
       event = d3.dispatch("tick"),
       size = [1, 1],
-      alpha,
+      alpha = .1,
+      alpha_cache, // so that stop can set alpha = 0
       drag = .9,
       distance = 20,
       charge = -30,
@@ -158,6 +159,12 @@ d3.layout.force = function() {
     return force;
   };
 
+  force.alpha = function(x) {
+    if (!arguments.length) return alpha;
+    alpha = x;
+    return force;
+  };
+
   force.start = function() {
     var i,
         j,
@@ -216,12 +223,13 @@ d3.layout.force = function() {
   };
 
   force.resume = function() {
-    alpha = .1;
+    alpha = alpha ? alpha : alpha_cache;
     d3.timer(tick);
     return force;
   };
 
   force.stop = function() {
+    alpha_cache = alpha;
     alpha = 0;
     return force;
   };
