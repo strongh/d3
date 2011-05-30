@@ -2993,7 +2993,8 @@ function d3_svg_lineMonotone(points) {
         d3_svg_lineHermite(points, d3_svg_lineMonotoneTangents(points));
 }
 d3.svg.area = function() {
-  var x = d3_svg_lineX,
+  var x0 = d3_svg_areaX0,
+      x1 = d3_svg_lineX,
       y0 = d3_svg_areaY0,
       y1 = d3_svg_lineY,
       interpolate = "linear",
@@ -3004,14 +3005,20 @@ d3.svg.area = function() {
 
   function area(d) {
     return d.length < 1 ? null
-        : "M" + interpolator(d3_svg_linePoints(this, d, x, y1), tension)
-        + "L" + interpolator(d3_svg_linePoints(this, d, x, y0).reverse(), tension)
+        : "M" + interpolator(d3_svg_linePoints(this, d, x1, y1), tension)
+        + "L" + interpolator(d3_svg_linePoints(this, d, x0, y0).reverse(), tension)
         + "Z";
   }
 
-  area.x = function(v) {
-    if (!arguments.length) return x;
-    x = v;
+  area.x0 = function(v) {
+    if (!arguments.length) return x0;
+    x0 = v;
+    return area;
+  };
+
+  area.x1 = function(v) {
+    if (!arguments.length) return x1;
+    x1 = v;
     return area;
   };
 
@@ -3043,6 +3050,10 @@ d3.svg.area = function() {
 };
 
 function d3_svg_areaY0() {
+  return 0;
+}
+
+function d3_svg_areaX0() {
   return 0;
 }
 d3.svg.chord = function() {
