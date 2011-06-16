@@ -1,11 +1,11 @@
-(function(){d3 = {version: "1.17.1"}; // semver
+(function(){d3 = {version: "1.20.3"}; // semver
 if (!Date.now) Date.now = function() {
-  return +new Date();
+  return +new Date;
 };
 if (!Object.create) Object.create = function(o) {
   /** @constructor */ function f() {}
   f.prototype = o;
-  return new f();
+  return new f;
 };
 var d3_array = d3_arraySlice; // conversion for NodeLists
 
@@ -41,31 +41,46 @@ d3.descending = function(a, b) {
   return b < a ? -1 : b > a ? 1 : 0;
 };
 d3.min = function(array, f) {
-  var i = 0,
+  var i = -1,
       n = array.length,
-      a = array[0],
+      a,
       b;
   if (arguments.length === 1) {
-    while (++i < n) if (a > (b = array[i])) a = b;
+    while (++i < n && ((a = array[i]) == null || a != a)) a = undefined;
+    while (++i < n) if ((b = array[i]) != null && a > b) a = b;
   } else {
-    a = f(array[0]);
-    while (++i < n) if (a > (b = f(array[i]))) a = b;
+    while (++i < n && ((a = f.call(array, array[i], i)) == null || a != a)) a = undefined;
+    while (++i < n) if ((b = f.call(array, array[i], i)) != null && a > b) a = b;
   }
   return a;
 };
 d3.max = function(array, f) {
-  var i = 0,
+  var i = -1,
       n = array.length,
-      a = array[0],
+      a,
       b;
   if (arguments.length === 1) {
-    while (++i < n) if (a < (b = array[i])) a = b;
+    while (++i < n && ((a = array[i]) == null || a != a)) a = undefined;
+    while (++i < n) if ((b = array[i]) != null && b > a) a = b;
   } else {
-    a = f(a);
-    while (++i < n) if (a < (b = f(array[i]))) a = b;
+    while (++i < n && ((a = f.call(array, array[i], i)) == null || a != a)) a = undefined;
+    while (++i < n) if ((b = f.call(array, array[i], i)) != null && b > a) a = b;
   }
   return a;
 };
+d3.zip = function() {
+  if (!(n = arguments.length)) return [];
+  for (var i = -1, m = d3.min(arguments, d3_zipLength), zips = new Array(m); ++i < m;) {
+    for (var j = -1, n, zip = zips[i] = new Array(n); ++j < n;) {
+      zip[j] = arguments[j][i];
+    }
+  }
+  return zips;
+};
+
+function d3_zipLength(d) {
+  return d.length;
+}
 // Locate the insertion point for x in a to maintain sorted order. The
 // arguments lo and hi may be used to specify a subset of the array which should
 // be considered; by default the entire array is used. If x is already present
@@ -280,7 +295,7 @@ d3.round = function(x, n) {
       : Math.round(x);
 };
 d3.xhr = function(url, mime, callback) {
-  var req = new XMLHttpRequest();
+  var req = new XMLHttpRequest;
   if (arguments.length < 3) callback = mime;
   else if (mime && req.overrideMimeType) req.overrideMimeType(mime);
   req.open("GET", url, true);
@@ -597,14 +612,9 @@ function d3_ease_bounce(t) {
 }
 d3.event = null;
 d3.interpolate = function(a, b) {
-  if (typeof b === "number") return d3.interpolateNumber(+a, b);
-  if (typeof b === "string") {
-    return (b in d3_rgb_names) || /^(#|rgb\(|hsl\()/.test(b)
-        ? d3.interpolateRgb(String(a), b)
-        : d3.interpolateString(String(a), b);
-  }
-  if (b instanceof Array) return d3.interpolateArray(a, b);
-  return d3.interpolateObject(a, b);
+  var i = d3.interpolators.length, f;
+  while (--i >= 0 && !(f = d3.interpolators[i](a, b)));
+  return f;
 };
 
 d3.interpolateNumber = function(a, b) {
@@ -773,6 +783,14 @@ function d3_interpolateByName(n) {
       ? d3.interpolateRgb
       : d3.interpolate;
 }
+
+d3.interpolators = [
+  d3.interpolateObject,
+  function(a, b) { return (b instanceof Array) && d3.interpolateArray(a, b); },
+  function(a, b) { return (typeof b === "string") && d3.interpolateString(String(a), b); },
+  function(a, b) { return (b in d3_rgb_names || /^(#|rgb\(|hsl\()/.test(b)) && d3.interpolateRgb(String(a), b); },
+  function(a, b) { return (typeof b === "number") && d3.interpolateNumber(+a, b); }
+];
 function d3_uninterpolateNumber(a, b) {
   b = 1 / (b - (a = +a));
   return function(x) { return (x - a) * b; };
@@ -1934,7 +1952,7 @@ function d3_transition(groups) {
     /** @this {Element} */
     function attrTween(d, i) {
       var f = tween.call(this, d, i, this.getAttribute(name));
-      return function(t) {
+      return f && function(t) {
         this.setAttribute(name, f(t));
       };
     }
@@ -1942,7 +1960,7 @@ function d3_transition(groups) {
     /** @this {Element} */
     function attrTweenNS(d, i) {
       var f = tween.call(this, d, i, this.getAttributeNS(name.space, name.local));
-      return function(t) {
+      return f && function(t) {
         this.setAttributeNS(name.space, name.local, f(t));
       };
     }
@@ -1961,7 +1979,7 @@ function d3_transition(groups) {
     /** @this {Element} */
     function styleTween(d, i) {
       var f = tween.call(this, d, i, window.getComputedStyle(this, null).getPropertyValue(name));
-      return function(t) {
+      return f && function(t) {
         this.style.setProperty(name, f(t), priority);
       };
     }
@@ -2015,8 +2033,8 @@ function d3_transition(groups) {
 
 function d3_transitionTween(b) {
   return typeof b === "function"
-      ? function(d, i, a) { return d3.interpolate(a, String(b.call(this, d, i))); }
-      : (b = String(b), function(d, i, a) { return d3.interpolate(a, b); });
+      ? function(d, i, a) { var v = b.call(this, d, i) + ""; return a != v && d3.interpolate(a, v); }
+      : (b = b + "", function(d, i, a) { return a != b && d3.interpolate(a, b); });
 }
 var d3_timer_queue = null,
     d3_timer_interval, // is an interval (or frame) active?
@@ -2124,6 +2142,27 @@ var d3_timer_frame = window.requestAnimationFrame
     || window.msRequestAnimationFrame
     || function(callback) { setTimeout(callback, 17); };
 d3.scale = {};
+function d3_scale_nice(domain, nice) {
+  var i0 = 0,
+      i1 = domain.length - 1,
+      x0 = domain[i0],
+      x1 = domain[i1],
+      dx;
+
+  if (x1 < x0) {
+    dx = i0; i0 = i1; i1 = dx;
+    dx = x0; x0 = x1; x1 = dx;
+  }
+
+  nice = nice(x1 - x0);
+  domain[i0] = nice.floor(x0);
+  domain[i1] = nice.ceil(x1);
+  return domain;
+}
+
+function d3_scale_niceDefault() {
+  return Math;
+}
 d3.scale.linear = function() {
   var domain = [0, 1],
       range = [0, 1],
@@ -2208,8 +2247,21 @@ d3.scale.linear = function() {
     return d3.format(",." + n + "f");
   };
 
+  scale.nice = function() {
+    d3_scale_nice(domain, d3_scale_linearNice);
+    return rescale();
+  };
+
   return rescale();
 };
+
+function d3_scale_linearNice(dx) {
+  dx = Math.pow(10, Math.round(Math.log(dx) / Math.LN10) - 1);
+  return {
+    floor: function(x) { return Math.floor(x / dx) * dx; },
+    ceil: function(x) { return Math.ceil(x / dx) * dx; },
+  };
+}
 function d3_scale_bilinear(domain, range, uninterpolate, interpolate) {
   var u = uninterpolate(domain[0], domain[1]),
       i = interpolate(range[0], range[1]);
@@ -2258,6 +2310,11 @@ d3.scale.log = function() {
   scale.rangeRound = d3.rebind(scale, linear.rangeRound);
   scale.interpolate = d3.rebind(scale, linear.interpolate);
   scale.clamp = d3.rebind(scale, linear.clamp);
+
+  scale.nice = function() {
+    linear.domain(d3_scale_nice(linear.domain(), d3_scale_niceDefault));
+    return scale;
+  };
 
   scale.ticks = function() {
     var d = linear.domain(),
@@ -2334,6 +2391,10 @@ d3.scale.pow = function() {
   scale.clamp = d3.rebind(scale, linear.clamp);
   scale.ticks = tick.ticks;
   scale.tickFormat = tick.tickFormat;
+
+  scale.nice = function() {
+    return scale.domain(d3_scale_nice(scale.domain(), d3_scale_linearNice));
+  };
 
   scale.exponent = function(x) {
     if (!arguments.length) return exponent;
@@ -3310,16 +3371,6 @@ d3.svg.symbol = function() {
   return symbol;
 };
 
-// TODO cross-diagonal?
-d3.svg.symbolTypes = [
-  "circle",
-  "cross",
-  "diamond",
-  "square",
-  "triangle-down",
-  "triangle-up"
-];
-
 function d3_svg_symbolSize() {
   return 64;
 }
@@ -3328,6 +3379,7 @@ function d3_svg_symbolType() {
   return "circle";
 }
 
+// TODO cross-diagonal?
 var d3_svg_symbols = {
   "circle": function(size) {
     var r = Math.sqrt(size / Math.PI);
@@ -3387,6 +3439,8 @@ var d3_svg_symbols = {
   }
 };
 
+d3.svg.symbolTypes = d3.keys(d3_svg_symbols);
+
 var d3_svg_symbolSqrt3 = Math.sqrt(3),
     d3_svg_symbolTan30 = Math.tan(30 * Math.PI / 180);
-})()
+})();

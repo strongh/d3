@@ -37,6 +37,7 @@ d3.core.js: \
 	src/core/descending.js \
 	src/core/min.js \
 	src/core/max.js \
+	src/core/zip.js \
 	src/core/bisect.js \
 	src/core/nest.js \
 	src/core/keys.js \
@@ -70,6 +71,7 @@ d3.core.js: \
 
 d3.scale.js: \
 	src/scale/scale.js \
+	src/scale/nice.js \
 	src/scale/linear.js \
 	src/scale/bilinear.js \
 	src/scale/polylinear.js \
@@ -103,6 +105,7 @@ d3.chart.js: \
 	src/chart/chart.js \
 	src/chart/box.js \
 	src/chart/bullet.js \
+	src/chart/horizon.js \
 	src/chart/qq.js \
 	src/end.js
 
@@ -125,6 +128,7 @@ d3.layout.js: \
 d3.geo.js: \
 	src/start.js \
 	src/geo/geo.js \
+	src/geo/azimuthal.js \
 	src/geo/albers.js \
 	src/geo/mercator.js \
 	src/geo/path.js \
@@ -165,8 +169,11 @@ tests: \
 	tests/test-insert.test \
 	tests/test-interpolate.test \
 	tests/test-keys.test \
+	tests/test-max.test \
+	tests/test-min.test \
 	tests/test-nest.test \
 	tests/test-permute.test \
+	tests/test-zip.test \
 	tests/test-remove.test \
 	tests/test-rgb.test \
 	tests/test-round.test \

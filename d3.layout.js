@@ -158,6 +158,7 @@ d3.layout.force = function() {
       alpha = .1,
       alpha_cache, // so that stop can set alpha = 0
       drag = .9,
+      friction = .9,
       distance = 20,
       charge = -30,
       gravity = .1,
@@ -165,8 +166,8 @@ d3.layout.force = function() {
       max_iterations = Infinity,
       iteration_counter,
       interval,
-      nodes,
-      links,
+      nodes = [],
+      links = [],
       distances;
 
   function repulse(node, kc) {
@@ -250,8 +251,8 @@ d3.layout.force = function() {
         o.x = o.px;
         o.y = o.py;
       } else {
-        o.x -= (o.px - (o.px = o.x)) * drag;
-        o.y -= (o.py - (o.py = o.y)) * drag;
+        o.x -= (o.px - (o.px = o.x)) * friction;
+        o.y -= (o.py - (o.py = o.y)) * friction;
       }
     }
 
@@ -294,9 +295,9 @@ d3.layout.force = function() {
     return force;
   };
 
-  force.drag = function(x) {
-    if (!arguments.length) return drag;
-    drag = x;
+  force.friction = function(x) {
+    if (!arguments.length) return friction;
+    friction = x;
     return force;
   };
 
@@ -551,17 +552,13 @@ d3.layout.partition = function() {
     return nodes;
   }
 
-  partition.sort = d3.rebind(partition, hierarchy.sort);
-  partition.children = d3.rebind(partition, hierarchy.children);
-  partition.value = d3.rebind(partition, hierarchy.value);
-
   partition.size = function(x) {
     if (!arguments.length) return size;
     size = x;
     return partition;
   };
 
-  return partition;
+  return d3_layout_hierarchyRebind(partition, hierarchy);
 };
 d3.layout.pie = function() {
   var value = Number,
@@ -1077,6 +1074,15 @@ d3.layout.hierarchy = function() {
   return hierarchy;
 }
 
+// A method assignment helper for hierarchy subclasses.
+function d3_layout_hierarchyRebind(object, hierarchy) {
+  object.sort = d3.rebind(object, hierarchy.sort);
+  object.children = d3.rebind(object, hierarchy.children);
+  object.links = d3_layout_hierarchyLinks;
+  object.value = d3.rebind(object, hierarchy.value);
+  return object;
+}
+
 function d3_layout_hierarchyChildren(d) {
   return d.children;
 }
@@ -1088,8 +1094,17 @@ function d3_layout_hierarchyValue(d) {
 function d3_layout_hierarchySort(a, b) {
   return b.value - a.value;
 }
+
+// Returns an array source+target objects for the specified nodes.
+function d3_layout_hierarchyLinks(nodes) {
+  return d3.merge(nodes.map(function(parent) {
+    return (parent.children || []).map(function(child) {
+      return {source: parent, target: child};
+    });
+  }));
+}
 d3.layout.pack = function() {
-  var hierarchy = d3.layout.hierarchy(),
+  var hierarchy = d3.layout.hierarchy().sort(d3_layout_packSort),
       size = [1, 1];
 
   function pack(d, i) {
@@ -1110,17 +1125,13 @@ d3.layout.pack = function() {
     return nodes;
   }
 
-  pack.sort = d3.rebind(pack, hierarchy.sort);
-  pack.children = d3.rebind(pack, hierarchy.children);
-  pack.value = d3.rebind(pack, hierarchy.value);
-
   pack.size = function(x) {
     if (!arguments.length) return size;
     size = x;
     return pack;
   };
 
-  return pack.sort(d3_layout_packSort);
+  return d3_layout_hierarchyRebind(pack, hierarchy);
 };
 
 function d3_layout_packSort(a, b) {
@@ -1333,10 +1344,6 @@ d3.layout.cluster = function() {
     return nodes;
   }
 
-  cluster.sort = d3.rebind(cluster, hierarchy.sort);
-  cluster.children = d3.rebind(cluster, hierarchy.children);
-  cluster.links = d3_layout_treeLinks;
-
   cluster.separation = function(x) {
     if (!arguments.length) return separation;
     separation = x;
@@ -1349,7 +1356,7 @@ d3.layout.cluster = function() {
     return cluster;
   };
 
-  return cluster;
+  return d3_layout_hierarchyRebind(cluster, hierarchy);
 };
 
 function d3_layout_clusterY(children) {
@@ -1488,7 +1495,7 @@ d3.layout.tree = function() {
         deep = d3_layout_treeSearch(root, d3_layout_treeDeepest),
         x0 = left.x - separation(left, right) / 2,
         x1 = right.x + separation(right, left) / 2,
-        y1 = deep.depth;
+        y1 = deep.depth || 1;
 
     // Clear temporary layout variables; transform x and y.
     d3_layout_treeVisitAfter(root, function(node) {
@@ -1499,10 +1506,6 @@ d3.layout.tree = function() {
 
     return nodes;
   }
-
-  tree.sort = d3.rebind(tree, hierarchy.sort);
-  tree.children = d3.rebind(tree, hierarchy.children);
-  tree.links = d3_layout_treeLinks;
 
   tree.separation = function(x) {
     if (!arguments.length) return separation;
@@ -1516,17 +1519,8 @@ d3.layout.tree = function() {
     return tree;
   };
 
-  return tree;
+  return d3_layout_hierarchyRebind(tree, hierarchy);
 };
-
-// Returns an array source+target objects for the specified nodes.
-function d3_layout_treeLinks(nodes) {
-  return d3.merge(nodes.map(function(parent) {
-    return (parent.children || []).map(function(child) {
-      return {source: parent, target: child};
-    });
-  }));
-}
 
 function d3_layout_treeSeparation(a, b) {
   return a.parent == b.parent ? 1 : 2;
@@ -1621,12 +1615,14 @@ function d3_layout_treeAncestor(vim, node, ancestor) {
       : ancestor;
 }
 // Squarified Treemaps by Mark Bruls, Kees Huizing, and Jarke J. van Wijk
+// Modified to support a target aspect ratio by Jeff Heer
 d3.layout.treemap = function() {
   var hierarchy = d3.layout.hierarchy(),
       round = Math.round,
       size = [1, 1], // width, height
       sticky = false,
-      stickies;
+      stickies,
+      ratio = 0.5 * (1 + Math.sqrt(5)); // golden ratio
 
   // Recursively compute the node area based on value & scale.
   function scale(node, k) {
@@ -1707,7 +1703,7 @@ d3.layout.treemap = function() {
     }
     s *= s;
     u *= u;
-    return Math.max((u * rmax) / s, s / (u * rmin));
+    return Math.max((u * rmax * ratio) / s, s / (u * rmin * ratio));
   }
 
   // Positions the specified row of nodes. Modifies `rect`.
@@ -1761,10 +1757,6 @@ d3.layout.treemap = function() {
     return nodes;
   }
 
-  treemap.sort = d3.rebind(treemap, hierarchy.sort);
-  treemap.children = d3.rebind(treemap, hierarchy.children);
-  treemap.value = d3.rebind(treemap, hierarchy.value);
-
   treemap.size = function(x) {
     if (!arguments.length) return size;
     size = x;
@@ -1784,6 +1776,12 @@ d3.layout.treemap = function() {
     return treemap;
   };
 
-  return treemap;
+  treemap.ratio = function(x) {
+    if (!arguments.length) return ratio;
+    ratio = x;
+    return treemap;
+  };
+
+  return d3_layout_hierarchyRebind(treemap, hierarchy);
 };
-})()
+})();

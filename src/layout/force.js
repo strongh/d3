@@ -6,6 +6,7 @@ d3.layout.force = function() {
       alpha = .1,
       alpha_cache, // so that stop can set alpha = 0
       drag = .9,
+      friction = .9,
       distance = 20,
       charge = -30,
       gravity = .1,
@@ -13,8 +14,8 @@ d3.layout.force = function() {
       max_iterations = Infinity,
       iteration_counter,
       interval,
-      nodes,
-      links,
+      nodes = [],
+      links = [],
       distances;
 
   function repulse(node, kc) {
@@ -98,8 +99,8 @@ d3.layout.force = function() {
         o.x = o.px;
         o.y = o.py;
       } else {
-        o.x -= (o.px - (o.px = o.x)) * drag;
-        o.y -= (o.py - (o.py = o.y)) * drag;
+        o.x -= (o.px - (o.px = o.x)) * friction;
+        o.y -= (o.py - (o.py = o.y)) * friction;
       }
     }
 
@@ -142,9 +143,9 @@ d3.layout.force = function() {
     return force;
   };
 
-  force.drag = function(x) {
-    if (!arguments.length) return drag;
-    drag = x;
+  force.friction = function(x) {
+    if (!arguments.length) return friction;
+    friction = x;
     return force;
   };
 
