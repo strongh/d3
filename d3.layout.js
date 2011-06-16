@@ -807,7 +807,7 @@ var d3_layout_stackOffsets = {
       sums.push(o);
     }
     for (j = 0; j < m; ++j) {
-      y0[j] = (max - sums[j]) / 2;
+        y0[j] = index ? (max - sums[j]) : (max - sums[j]) / 2;
     }
     return y0;
   },
