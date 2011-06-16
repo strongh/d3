@@ -135,17 +135,18 @@ var d3_layout_stackOrders = {
 
 var d3_layout_stackOffsets = {
 
-  "silhouette": function(data) {
+    "silhouette": function(data, index) {
     var n = data.length,
         m = data[0].length,
         sums = [],
         max = 0,
+        k = index ? index : n,
         i,
         j,
         o,
         y0 = [];
     for (j = 0; j < m; ++j) {
-      for (i = 0, o = 0; i < n; i++) o += data[i][j][1];
+      for (i = 0, o = 0; i < k; i++) o += data[i][j][1];
       if (o > max) max = o;
       sums.push(o);
     }
